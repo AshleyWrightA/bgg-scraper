@@ -1,4 +1,5 @@
 # Standard Library Imports
+import random
 import requests
 import datetime as dt
 import logging
@@ -8,13 +9,12 @@ import time
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError, InvalidName
 from bs4 import BeautifulSoup
-from re import sub
 
 logger = logging.getLogger(__name__)
 
 
 def get_date(num_days):
-    return str(dt.date.today() - dt.timedelta(num_days+1))
+    return str(dt.date.today() - dt.timedelta(num_days + 1))
 
 
 def _fetch_bgg_page(date):
@@ -24,9 +24,9 @@ def _fetch_bgg_page(date):
     return page.text
 
 
-def get_bgg_play_data(num_days):
+def get_bgg_play_data(num_days=1):
     """Parses scraped data and returns a dict of play data"""
-    for i in range(0, num_days):
+    for i in range(num_days, 0, -1):
         date = get_date(i)
         soup = BeautifulSoup(_fetch_bgg_page(date), "html.parser")
         write_bgg_date(soup.findAll("table", {"class": "forum_table"})[1].stripped_strings, date)
@@ -35,31 +35,53 @@ def get_bgg_play_data(num_days):
 
 def write_bgg_date(table_data, date):
     db = get_database()
-    clean_table = get_clean_data(table_data)
     boardgames_collection = db["boardGames"]
-    plays_collection = db["plays"]
 
     # The first game in the table_data list is at index 4
     game_index = 4
     game_name = ""
     play_index = 5
 
-    for count, cell_data in enumerate(clean_table, start=1):
+    for count, cell_data in enumerate(table_data, start=1):
 
-        # Add boardgame to collection
         if count == game_index:
             game_name = cell_data
-            if boardgames_collection.count_documents({"name": game_name}) <= 0:
-                boardgames_collection.insert_one({"name": game_name})
 
-        # Add play data to collection
+            # Create a new document if there is no existing document
+            if boardgames_collection.count_documents({"name": game_name}) <= 0:
+                boardgames_collection.insert_one({"name": game_name, "plays": {}, "rgb_string": get_rgb_string()})
+
         if count == play_index:
+            play = {date: int(cell_data)}
+
             ref = boardgames_collection.find_one({"name": game_name})
-            play = {"date": date, "numPlays": int(cell_data), "boardgame_id": ref['_id']}
-            plays_collection.insert_one(play)
+            ref["plays"].update(play)
+            boardgames_collection.update_one({"_id": ref["_id"]}, {"$set": {"plays": ref["plays"]}})
 
             game_index += 3
             play_index += 3
+
+
+def generate_rgb_string():
+    r = random.randint(0, 240)
+    g = random.randint(0, 240)
+    b = random.randint(0, 240)
+    return f"rgb({r},{g},{b},)"
+
+
+def get_rgb_string():
+    rgb_string = generate_rgb_string()
+    return rgb_string if check_db_rgb(rgb_string) else get_rgb_string()
+
+def check_db_rgb(rgb_string):
+    db = get_database()
+    rgb_collection = db["rgbCollection"]
+
+    if rgb_collection.count_documents({"rgb_string": rgb_string}) <= 0:
+        rgb_collection.insert_one({"rgb_string": rgb_string})
+        return True
+    else:
+        return False
 
 
 def get_database():
@@ -71,11 +93,3 @@ def get_database():
         logger.error("Connection to Database Failed")
     else:
         return db
-
-
-def get_clean_data(table_data):
-    clean_table_data = []
-    for string in table_data:
-        new_string = sub(r"([_\-:'!\\.])+", " ", string).title().replace(" ", "")
-        clean_table_data.append(new_string[0].lower() + new_string[1:])
-    return clean_table_data
