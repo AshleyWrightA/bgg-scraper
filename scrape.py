@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_date(num_days):
-    return str(dt.date.today() - dt.timedelta(num_days + 1))
+    return str(dt.date.today() - dt.timedelta(num_days))
 
 
 def _fetch_bgg_page(date):
@@ -35,7 +35,8 @@ def get_bgg_play_data(num_days=1):
 
 def write_bgg_date(table_data, date):
     db = get_database()
-    boardgames_collection = db["boardGames"]
+    boardgames_collection = db["boardGameCollection"]
+    date_collection = db["dateCollection"]
 
     # The first game in the table_data list is at index 4
     game_index = 4
@@ -49,14 +50,11 @@ def write_bgg_date(table_data, date):
 
             # Create a new document if there is no existing document
             if boardgames_collection.count_documents({"name": game_name}) <= 0:
-                boardgames_collection.insert_one({"name": game_name, "plays": {}, "rgb_string": get_rgb_string()})
+                boardgames_collection.insert_one({"name": game_name, "rgbString": get_rgb_string()})
 
         if count == play_index:
-            play = {date: int(cell_data)}
-
-            ref = boardgames_collection.find_one({"name": game_name})
-            ref["plays"].update(play)
-            boardgames_collection.update_one({"_id": ref["_id"]}, {"$set": {"plays": ref["plays"]}})
+            boardgame_doc = boardgames_collection.find_one({"name": game_name})
+            date_collection.insert_one({"date": date, "playData": {"_id": boardgame_doc["_id"], "playCount": int(cell_data)}})
 
             game_index += 3
             play_index += 3
@@ -66,19 +64,20 @@ def generate_rgb_string():
     r = random.randint(0, 240)
     g = random.randint(0, 240)
     b = random.randint(0, 240)
-    return f"rgb({r},{g},{b},)"
+    return f"rgb({r},{g},{b})"
 
 
 def get_rgb_string():
     rgb_string = generate_rgb_string()
     return rgb_string if check_db_rgb(rgb_string) else get_rgb_string()
 
+
 def check_db_rgb(rgb_string):
     db = get_database()
     rgb_collection = db["rgbCollection"]
 
-    if rgb_collection.count_documents({"rgb_string": rgb_string}) <= 0:
-        rgb_collection.insert_one({"rgb_string": rgb_string})
+    if rgb_collection.count_documents({"rgbString": rgb_string}) <= 0:
+        rgb_collection.insert_one({"rgbString": rgb_string})
         return True
     else:
         return False
