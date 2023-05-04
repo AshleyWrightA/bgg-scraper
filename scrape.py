@@ -61,9 +61,9 @@ def write_bgg_date(table_data, date):
 
 
 def generate_rgb_string():
-    r = random.randint(0, 240)
-    g = random.randint(0, 240)
-    b = random.randint(0, 240)
+    r = random.randint(10, 240)
+    g = random.randint(10, 240)
+    b = random.randint(10, 240)
     return f"rgb({r},{g},{b})"
 
 
