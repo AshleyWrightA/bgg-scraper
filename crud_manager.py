@@ -57,36 +57,26 @@ class CrudManager:
     def create_bgg_data(self, table_data, date):
         """Creates new play & boardgame data entries if a new game is scraped."""
 
-        # The first game in the table_data list is at index 4
+        # The first game in the table_data list is at index 4, skipping the headers
         game_index = 4
-        game_name = ""
         play_index = 5
+        game_name = ""
 
         for count, cell_data in enumerate(table_data, start=1):
-
             if count == game_index:
                 game_name = cell_data
-
                 # Create a new document in the boardGameCollection if there is no existing document
-                if self.board_game_collection.count_documents({"name": game_name}) <= 0:
-                    self.board_game_collection.insert_one({"name": game_name, "rgbString": self._get_rgb_string()})
-                    self.logger.debug(f"inserted new boardGameCollection document: {game_name}")
+                if self.board_game_collection.count_documents({"name": game_name}) == 0:
+                    self._create_new_board_game_doc(game_name)
 
             if count == play_index:
-                boardgame_doc = self.board_game_collection.find_one({"name": game_name})
-                cell_data = int(cell_data)
-
+                play_count = int(cell_data)
+                board_game_id = self._get_board_game_id(game_name)
                 # Check if a play has already been entered, with a matching date
-                if self.play_collection.count_documents(
-                        {"date": date, "boardGame_ref": ObjectId(boardgame_doc["_id"])}) >= 1:
-                    self.play_collection.update_one(
-                        {"date": date, "boardGame_ref": ObjectId(boardgame_doc["_id"]), },
-                        {"$inc": {"playCount": cell_data}, "$set": {"merged": "true"}}
-                    )
+                if self.play_collection.count_documents({"date": date, "boardGame_ref": ObjectId(board_game_id)}) >= 1:
+                    self._update_merged_play_doc(date, board_game_id, play_count, "true")
                 else:
-                    self.play_collection.insert_one(
-                        {"date": date, "playCount": cell_data, "boardGame_ref": boardgame_doc["_id"],
-                         "merged": "null"})
+                    self._create_new_play_doc(date, play_count, board_game_id)
 
                 game_index += 3
                 play_index += 3
@@ -96,33 +86,36 @@ class CrudManager:
 
         # The first game in the table_data list is at index 4
         game_index = 4
-        game_name = ""
         play_index = 5
+        game_name = ""
+        board_game_id = ""
 
         for count, cell_data in enumerate(table_data, start=1):
 
             if count == game_index:
                 game_name = cell_data
+                board_game_id = self._get_board_game_id(game_name)
 
             if count == play_index:
-                boardgame_doc = self.board_game_collection.find_one({"name": game_name})
-                play_doc = self.play_collection.find_one(
-                    {"date": date, "boardGame_ref": ObjectId(boardgame_doc["_id"])})
-                cell_data = int(cell_data)
 
-                old_play_count = play_doc["playCount"]
-                is_merged = play_doc["merged"]
+                # If a record appears on the table during an update, due to retro logged plays, add it to the DB
+                if board_game_id is None:
+                    self._create_new_board_game_doc(game_name)
+                    board_game_id = self._get_board_game_id(game_name)
+                    self._create_new_play_doc(date, game_name, board_game_id)
+                else:
+                    play_count = int(cell_data)
+                    play_doc = self._get_play_doc(date, board_game_id)
+                    old_play_count = play_doc["playCount"]
+                    is_merged = play_doc["merged"]
 
-                if is_merged == "true":
-                    self.play_collection.update_one({"date": date, "boardGame_ref": ObjectId(boardgame_doc["_id"])},
-                                                    {"$set": {"playCount": cell_data, "merged": "false"}})
-                if is_merged == "false":
-                    self.play_collection.update_one({"date": date, "boardGame_ref": ObjectId(boardgame_doc["_id"])},
-                                                    {"$inc": {"playCount": cell_data}, "$set": {"merged": "true"}})
-                if old_play_count < cell_data and is_merged == "null":
-                    self.play_collection.update_one({"date": date, "boardGame_ref": ObjectId(boardgame_doc["_id"])},
-                                                    {"$set": {"playCount": cell_data}})
-                    self.logger.debug(f"play record updated: {game_name}")
+                    if is_merged == "true":
+                        self._update_merged_play_doc(date, board_game_id, play_count, "false")
+                    if is_merged == "false":
+                        self._update_merged_play_doc(date, board_game_id, play_count, "true")
+                    if old_play_count < play_count and is_merged == "null":
+                        self._update_play_doc(date, board_game_id, play_count)
+
                 game_index += 3
                 play_index += 3
 
@@ -167,3 +160,30 @@ class CrudManager:
 
     def _count_board_game_documents(self):
         return self.board_game_collection.count_documents({})
+
+    def _create_new_board_game_doc(self, game_name):
+        self.board_game_collection.insert_one({"name": game_name, "rgbString": self._get_rgb_string()})
+        self.logger.debug(f"inserted new boardGameCollection document: {game_name}")
+
+    def _create_new_play_doc(self, date, cell_data, board_game_id):
+        self.play_collection.insert_one({"date": date, "playCount": cell_data, "boardGame_ref": board_game_id,
+                                         "merged": "null"})
+
+    def _update_merged_play_doc(self, date, board_game_id, play_count, merged_bool):
+        self.play_collection.update_one({"date": date, "boardGame_ref": ObjectId(board_game_id)},
+                                        {"$inc": {"playCount": play_count}, "$set": {"merged": merged_bool}})
+
+    def _update_play_doc(self, date, board_game_id, play_count):
+        self.play_collection.update_one({"date": date, "boardGame_ref": ObjectId(board_game_id)},
+                                        {"$set": {"playCount": play_count}})
+        self.logger.debug(f"play record updated: {board_game_id}")
+
+    def _get_board_game_id(self, game_name):
+        board_game_id = self.board_game_collection.find_one({"name": game_name})
+        if board_game_id is None:
+            return None
+        else:
+            return board_game_id["_id"]
+
+    def _get_play_doc(self, date, board_game_id):
+        return self.play_collection.find_one({"date": date, "boardGame_ref": ObjectId(board_game_id)})
