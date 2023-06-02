@@ -25,7 +25,6 @@ class CrudManager:
     def __init__(self):
         self.logger = get_local_logger()
         self.database = self._get_database()
-        self.date_collection = self.database["dateCollection"]
         self.play_collection = self.database["playCollection"]
         self.board_game_collection = self.database["boardGameCollection"]
         self.rgb_collection = self.database["rgbCollection"]
@@ -56,77 +55,6 @@ class CrudManager:
 
         self.logger.debug(f"Completed scraping. Total play documents: {self._count_play_documents()}. "
                           f"Total board game documents: {self._count_board_game_documents()}")
-
-    # def create_bgg_data(self, table_data, date):
-    #     """Creates new play & boardgame data entries if a new game is scraped."""
-    #
-    #     # The first game in the table_data list is at index 4, skipping the headers
-    #     game_index = 4
-    #     play_index = 5
-    #     game_name = ""
-    #
-    #     for count, cell_data in enumerate(table_data, start=1):
-    #         if count == game_index:
-    #             game_name = cell_data
-    #             # Create a new document in the boardGameCollection if there is no existing document
-    #             if self.board_game_collection.count_documents({"name": game_name}) == 0:
-    #                 self._create_new_board_game_doc(game_name)
-    #
-    #         if count == play_index:
-    #             play_count = int(cell_data)
-    #             board_game_id = self._find_board_game_id(game_name)
-    #             # Check if a play has already been entered, with a matching date
-    #             if self.play_collection.count_documents({"date": date, "boardGame_ref": ObjectId(board_game_id)}) >= 1:
-    #                 self._update_merged_play_doc(date, board_game_id, play_count, "true")
-    #             else:
-    #                 self._create_new_play_doc(date, play_count, board_game_id)
-    #
-    #             game_index += 3
-    #             play_index += 3
-    #
-    # def update_bgg_data(self, table_data, date):
-    #     """Updates existing play data entries. Overwrites the entry if an updated count is scraped."""
-    #
-    #     # The first game in the table_data list is at index 4
-    #     game_index = 4
-    #     play_index = 5
-    #
-    #     # Initialize variables
-    #     game_name = ""
-    #     board_game_id = ""
-    #
-    #     for count, cell_data in enumerate(table_data, start=1):
-    #
-    #         if count == game_index:
-    #             game_name = cell_data
-    #             board_game_id = self._find_board_game_id(game_name)
-    #
-    #         if count == play_index:
-    #
-    #             # If a new board game appears on the table during an update, due to retro logged plays, add it to the DB
-    #             if board_game_id is None:
-    #                 self._create_new_board_game_doc(game_name)
-    #                 board_game_id = self._find_board_game_id()
-    #                 self._create_new_play_doc(date, game_name, board_game_id)
-    #             else:
-    #                 play_count = int(cell_data)
-    #                 play_doc = self._get_play_doc(date, board_game_id)
-    #
-    #                 if self._validate_play_doc_by_date(date, board_game_id):
-    #                     old_play_count = play_doc["playCount"]
-    #                     is_merged = play_doc["merged"]
-    #
-    #                     if is_merged == "true":
-    #                         self._update_merged_play_doc(date, board_game_id, play_count, "false")
-    #                     if is_merged == "false":
-    #                         self._update_merged_play_doc(date, board_game_id, play_count, "true")
-    #                     if old_play_count < play_count and is_merged == "null":
-    #                         self._update_play_doc(date, board_game_id, play_count)
-    #                 else:
-    #                     self._create_new_play_doc(date, cell_data, board_game_id)
-    #
-    #             game_index += 3
-    #             play_index += 3
 
     def _process_table_data(self, table_data, date):
         # The first game in the table_data list is at index 4
@@ -217,17 +145,6 @@ class CrudManager:
                 self._update_play_doc(date, board_game_id, play_count)
         else:
             self._create_new_play_doc(date, cell_data, board_game_id)
-
-    def _validate_date_record(self, date):
-        """Checks the dateCollection collection which contains a record of each date's data that was scraped into the
-        database. Returns false if date lacks any scraped data."""
-
-        # Check if data was already entered for this date, if false, fetch and write data
-        if self.date_collection.count_documents({"date": date}) <= 0:
-            self.date_collection.insert_one({"date": date})
-            return False
-        else:
-            return True
 
     def _validate_play_doc_by_date(self, date, board_game_id):
         if self.play_collection.count_documents({"date": date, "boardGame_ref": ObjectId(board_game_id)}) >= 1:
