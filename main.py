@@ -8,5 +8,6 @@ def main():
     manager.get_bgg_play_data()
 
 
+# Entrypoint
 if __name__ == "__main__":
     main()

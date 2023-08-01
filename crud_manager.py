@@ -3,21 +3,13 @@ import time
 import requests
 import random
 
+import os
 from bs4 import BeautifulSoup
 from bson import ObjectId
 from pymongo import MongoClient
-from pymongo.errors import ServerSelectionTimeoutError
+from pymongo.server_api import ServerApi
 
 from logger import get_local_logger
-
-'''
-GET methods get data from an external source, they do not contain logic
-CREATE methods write data to an external source
-UPDATE methods are overwriting existing data to an external source
-VALIDATE methods return a true or false by checking if something exists
-PROCESS methods are making decisions based on conditions
-FIND methods make decisions based on conditions AND return data like a get method
-'''
 
 
 class CrudManager:
@@ -29,16 +21,24 @@ class CrudManager:
         self.board_game_collection = self.database["boardGameCollection"]
         self.rgb_collection = self.database["rgbCollection"]
 
+    def _get_environs(self):
+        mongodb_connection_string = ""
+        try:
+            mongodb_connection_string = os.environ.get('mongodb_connection_string')
+        except Exception as e:
+            self.logger.error("Failed to get environment variables")
+        return mongodb_connection_string
+
     def _get_database(self):
-        client = MongoClient("localhost", 27017)
+        uri = self._get_environs()
+        client = MongoClient(uri, server_api=ServerApi('1'))
         db = client['bggPlayDB']
         try:
             client.admin.command('ismaster')
-        except (ConnectionError, ServerSelectionTimeoutError):
-            self.logger.error("Connection to Database Failed")
-        else:
-            self.logger.info("Connection the the Database Established")
-            return db
+            self.logger.info("Connection to Database Successful")
+        except Exception as e:
+            self.logger.error("Connection to Database Failed", e)
+        return db
 
     def get_bgg_play_data(self, num_days=14):
         """Fetches scraped data"""
