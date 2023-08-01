@@ -1,0 +1,25 @@
+name: Run bgg-scraper
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  run_main_py:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.10'
+      - name: Set up environment variables
+        env:
+          mongodb_connection_string: ${{ secrets.MONGODB_CONNECTION_STRING }}
+        run: |
+          echo "mongodb_connection_string=$mongodb_connection_string" >> $GITHUB_ENV
+      - name: Run main.py
+        run: python main.py
