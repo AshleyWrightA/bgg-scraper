@@ -10,22 +10,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v2
-        with:
-          node-version: '16.x'
-      - name: Set up Python
+
+      - name: Setup Python
         uses: actions/setup-python@v2
         with:
           python-version: '3.10'
+          cache: 'pip'
 
       - name: Install Dependencies
         run: pip install -r requirements.txt
-
-      - name: Set up environment variables
-        env:
-          mongodb_connection_string: ${{ secrets.MONGODB_CONNECTION_STRING }}
-        run: |
-          echo "mongodb_connection_string=$mongodb_connection_string" >> $GITHUB_ENV
+        
       - name: Run main.py
+        env: 
+          MONGODB_CONNECTION_STRING: ${{ secrets.MONGODB_CONNECTION_STRING }}
         run: python main.py
