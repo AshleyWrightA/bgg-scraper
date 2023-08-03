@@ -1,9 +1,9 @@
-from logger import init_local_logger
+from logger import init_logger
 from crud_manager import CrudManager
 
 
 def main():
-    init_local_logger()
+    init_logger()
     manager = CrudManager()
     manager.get_bgg_play_data()
 

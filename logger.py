@@ -1,10 +1,11 @@
 import logging
+import sys
 
+def init_logger():
+    formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(formatter)
+    root_logger.addHandler(handler)
 
-def init_local_logger():
-    logging.basicConfig(level=logging.DEBUG, filename="logs/error.log", filemode="w",
-                        format='%(name)s - %(levelname)s - %(message)s')
-
-
-def get_local_logger():
-    return logging.getLogger(__name__)
