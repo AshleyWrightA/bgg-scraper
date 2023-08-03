@@ -24,7 +24,7 @@ class CrudManager:
     def _get_environs(self):
         mongodb_connection_string = ""
         try:
-            mongodb_connection_string = os.environ.get('mongodb_connection_string')
+            mongodb_connection_string = os.environ.get('MONGODB_CONNECTION_STRING')
         except Exception as e:
             self.logger.error("Failed to get environment variables")
         return mongodb_connection_string
