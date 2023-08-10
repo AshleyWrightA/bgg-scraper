@@ -67,10 +67,17 @@ class CrudManager:
                 game_name = cell_data
                 board_game_id = self._find_board_game_id(game_name)
             if count == play_index:
-                self._process_play_doc(date, cell_data, board_game_id)
-
-                game_index += 3
-                play_index += 3
+                try:
+                    self._process_play_doc(date, cell_data, board_game_id)
+                except ValueError:
+                    # Skip over a 'False Cell'.
+                    # There is an extra div inside some cells on the stats table.
+                    self.logger.debug(f"False Cell, {cell_data}")
+                    game_index += 4
+                    play_index += 4
+                else:
+                    game_index += 3
+                    play_index += 3
 
     def _get_rgb_string(self):
         rgb_string = self._generate_rgb_string()
